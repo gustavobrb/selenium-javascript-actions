@@ -1,0 +1,157 @@
+#DO THE TEST EACH 6 HOURS FROM MONDAY TO FRIDAY
+name: Selenium tests with Github Actions
+on: 
+#   schedule:
+#   - cron: "0 */6 * * 1-5"
+  
+  push:
+    branches:
+     - 'main'
+      
+  workflow_dispatch:
+
+jobs:
+
+  deploy-dev:
+    name: DEV
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: "14"
+
+      # Install required deps for action - jest, jest-html-report
+      - name: Install Dependencies
+        run: npm install --save-dev jest jest-html-reporter 
+
+      # Finally, run our tests
+      - name: Run the tests
+        continue-on-error: true
+        run: npm test
+        
+      - name: Generate report
+        continue-on-error: true
+        run:  npm test
+        
+      - name: Upload report
+        continue-on-error: true
+        uses: actions/upload-artifact@v2
+        with:
+          name: jest-report
+          path: './test-report.html'
+      - run: echo REALIZANDO TESTES UNITARIOS
+      
+      - uses: everlytic/branch-merge@1.1.2
+        with:          
+          source_ref: 'dev'
+          target_branch: 'qa'
+          commit_message_template: '[Automated] Merged {source_ref} into target {target_branch}'
+        
+  deploy-qa:
+      name: QA
+      needs: [deploy-dev]
+      runs-on: ubuntu-latest
+      steps:
+       - run: echo "🎉 Test in QA environment"
+
+       - name: Check out repository code
+         uses: actions/checkout@v2
+         timeout-minutes: 10
+
+       - name: Install libraries
+         run: npm install --save-dev @cucumber/pretty-formatter @cucumber/cucumber selenium-webdriver assert chromedriver   
+         timeout-minutes: 10
+        
+       - name: Run Tests
+         continue-on-error: true
+         run:  npm run test   
+      
+       - uses: everlytic/branch-merge@1.1.2
+         with:          
+          source_ref: 'qa'
+          target_branch: 'uat'
+          commit_message_template: '[Automated] Merged {source_ref} into target {target_branch}'       
+        
+       - name: Generate report
+         uses: actions/upload-artifact@v2
+         with:
+          name: QA-report.html
+          path: "**/cucumber-report.html"
+          
+  deploy-qa-api:
+      name: QA-API
+      needs: [deploy-dev]
+      runs-on: ubuntu-latest
+      steps:
+       - run: echo "🎉 Test in QA environment"
+
+       - name: Check out repository code
+         uses: actions/checkout@v2
+         timeout-minutes: 10
+
+       - name: Install libraries
+         run: npm install --save-dev @cucumber/pretty-formatter @cucumber/cucumber selenium-webdriver assert chromedriver   
+         timeout-minutes: 10
+        
+       - name: Run Tests
+         continue-on-error: true
+         run:  npm run test       
+          
+       
+       - name: Generate report
+         uses: actions/upload-artifact@v2
+         with:
+          name: API-report.html
+          path: "**/cucumber-report.html"         
+          
+          
+  deploy-uat:
+      name: UAT
+      needs: [deploy-qa]
+      runs-on: ubuntu-latest
+      steps:
+       - run: echo "🎉 Test in UAT environment"
+
+       - name: Check out repository code
+         uses: actions/checkout@v2
+         timeout-minutes: 10
+
+       - name: Install libraries
+         run: npm install --save-dev @cucumber/pretty-formatter @cucumber/cucumber selenium-webdriver assert chromedriver
+         timeout-minutes: 10
+        
+       - name: Run Tests
+         continue-on-error: true
+         run:  npm run test   
+         
+  deploy-pre-prod:
+      name: PRE-PROD
+      needs: [deploy-uat]
+      runs-on: ubuntu-latest
+      steps:
+       - run: echo "🎉 Deploy to Pre-production environment"
+      
+       - uses: everlytic/branch-merge@1.1.2
+         with:          
+          source_ref: 'uat'
+          target_branch: 'pre-prod'
+          commit_message_template: '[Automated] Merged {source_ref} into target {target_branch}'  
+          
+          
+  deploy-prod:
+      name: PROD
+      needs: [deploy-pre-prod]
+      runs-on: ubuntu-latest
+      steps:
+       - run: echo "🎉 Deploy to Production environment"
+      
+       - uses: everlytic/branch-merge@1.1.2
+         with:          
+          source_ref: 'pre-prod'
+          target_branch: 'main'
+          commit_message_template: '[Automated] Merged {source_ref} into target {target_branch}'  
+          
+          
+          
